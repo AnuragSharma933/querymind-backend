@@ -17,8 +17,13 @@ export const createConnection = async (config) => {
           port: config.port || 3306,
           user: config.user,
           password: config.password,
-          database: config.database
+          database: config.database,
+          connectTimeout: 10000,
+          acquireTimeout: 10000,
+          timeout: 10000
         });
+        // Test connection
+        await connection.ping();
         break;
 
       case 'postgresql':
@@ -28,8 +33,14 @@ export const createConnection = async (config) => {
           port: config.port || 5432,
           user: config.user,
           password: config.password,
-          database: config.database
+          database: config.database,
+          connectionTimeoutMillis: 10000,
+          idleTimeoutMillis: 10000,
+          max: 1
         });
+        // Test connection
+        const client = await connection.connect();
+        client.release();
         break;
 
       case 'sqlite':
@@ -42,7 +53,22 @@ export const createConnection = async (config) => {
     connections.set(connectionId, { connection, type: config.type });
     return connectionId;
   } catch (error) {
-    throw new AppError(`Database connection failed: ${error.message}`, 500);
+    console.error('Database connection error:', error);
+    let errorMessage = 'Database connection failed';
+    
+    if (error.code === 'ECONNREFUSED') {
+      errorMessage = 'Connection refused - Check if database server is running';
+    } else if (error.code === 'ENOTFOUND') {
+      errorMessage = 'Host not found - Check database host address';
+    } else if (error.code === 'ER_ACCESS_DENIED_ERROR') {
+      errorMessage = 'Access denied - Check username and password';
+    } else if (error.code === 'ER_BAD_DB_ERROR') {
+      errorMessage = 'Database does not exist';
+    } else {
+      errorMessage = `Database connection failed: ${error.message}`;
+    }
+    
+    throw new AppError(errorMessage, 500);
   }
 };
 

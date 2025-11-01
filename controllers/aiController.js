@@ -1,4 +1,5 @@
 import { convertNLToSQL, optimizeQuery, suggestImprovements } from '../utils/openRouter.js';
+import { createConnection, executeQuery } from './dbController.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 export const convertQuery = async (req, res, next) => {
@@ -19,6 +20,40 @@ export const convertQuery = async (req, res, next) => {
         timestamp: new Date().toISOString()
       }
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const executeUserQuery = async (req, res, next) => {
+  try {
+    const { host, port, user, password, database, query, dbType } = req.body;
+
+    if (!host || !user || !database || !query || !dbType) {
+      throw new AppError('Missing required fields', 400);
+    }
+
+    // Create temporary connection for user's database
+    const tempConnectionId = await createConnection({
+      type: dbType,
+      host,
+      port,
+      user,
+      password,
+      database
+    });
+
+    // Execute query
+    const results = await executeQuery(tempConnectionId, query);
+
+    res.json({
+      success: true,
+      data: {
+        results,
+        rowCount: results.length
+      }
+    });
+
   } catch (error) {
     next(error);
   }
